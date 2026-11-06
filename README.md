@@ -79,6 +79,14 @@ The controller listens on `:8080` by default. Configure it with:
 | `ORBIT_URL` | `http://127.0.0.1:8080` | Worker controller URL |
 | `ORBIT_WORKER_ID` | hostname | Stable worker identifier |
 
+## Run with Docker Compose
+
+```bash
+docker compose up --build
+```
+
+This starts one controller and one worker, and persists job snapshots in the named `orbit-data` volume. Stop with `docker compose down`; the volume remains until explicitly removed.
+
 ## Submit work
 
 ```bash
