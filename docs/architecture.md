@@ -25,7 +25,7 @@ queued --claim--> running --success--> succeeded
 ## Safety invariants
 
 1. A job is claimed while holding the store's exclusive lock.
-2. Only the worker currently recorded on a running job may acknowledge it.
+2. Only the worker currently recorded on a running job may acknowledge it, and every claim receives a fresh cryptographically random lease token. A stale token from an earlier attempt is rejected.
 3. Each claim increments the attempt counter.
 4. A retry is possible only while attempts remain below the configured maximum.
 5. Terminal jobs cannot transition back to queued.
@@ -33,7 +33,7 @@ queued --claim--> running --success--> succeeded
 
 ## Delivery semantics
 
-A lease provides recovery, not exactly-once execution. A worker can perform an external side effect and crash before acknowledging completion; the controller may then retry the job. Production handlers must be idempotent or use external idempotency keys. The current implementation does not provide fencing tokens across controller restarts.
+A lease provides recovery, not exactly-once execution. The per-claim fencing token prevents a stale attempt from acknowledging a later retry, including when the same worker identifier receives the job again. A worker can perform an external side effect and crash before acknowledging completion; the controller may then retry the job. Production handlers must be idempotent or use external idempotency keys. The current implementation does not provide fencing tokens across controller restarts.
 
 ## Current deployment boundary
 
