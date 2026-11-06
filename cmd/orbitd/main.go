@@ -24,7 +24,8 @@ func main() {
 	addr:=os.Getenv("ORBIT_ADDR"); if addr=="" { addr=":8080" }
 	lease:=envDuration("ORBIT_LEASE_DURATION",30*time.Second)
 	workerTTL:=envDuration("ORBIT_WORKER_TTL",90*time.Second)
-	jobs:=queue.NewMemory()
+	dataFile:=os.Getenv("ORBIT_DATA_FILE");if dataFile==""{dataFile="./data/orbit.json"}
+	jobs,err:=queue.NewFileStore(dataFile);if err!=nil{log.Fatalf("open job store: %v",err)}
 	workers:=scheduler.NewRegistry(workerTTL)
 	handler:=api.NewServer(jobs,workers,lease)
 	server:=&http.Server{Addr:addr,Handler:handler,ReadHeaderTimeout:5*time.Second,ReadTimeout:10*time.Second,WriteTimeout:15*time.Second,IdleTimeout:60*time.Second}
