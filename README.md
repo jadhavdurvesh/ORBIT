@@ -1,107 +1,140 @@
 # ORBIT
 
-**Distributed job orchestration, built in Go.**
+**A distributed job orchestration system written in Go.**
 
-ORBIT is an educational, production-minded control plane for dispatching work to a pool of worker agents. The first milestone establishes the domain model, deterministic scheduling, an in-memory queue, and an HTTP control API. Later milestones add worker heartbeats, leases, persistence, retries, resource-aware placement, and replicated controller state.
+ORBIT provides a control-plane API, worker registry, lease-based job claims, retries, abandoned-work recovery, and a standalone worker agent. The current release is a single-controller, in-memory deployment intended for local development and systems experimentation.
 
-## Design goals
+## Features
 
-- Explicit job lifecycle and validated state transitions
-- At-least-once execution semantics with lease-based recovery (planned)
-- Stateless HTTP API around a replaceable queue and scheduler
-- Small interfaces so storage and transport implementations remain swappable
-- Observable behavior and deterministic tests over magic behavior
-
-## Current status
-
-| Capability | Status |
-|---|---|
-| Job model and lifecycle validation | Implemented |
-| In-memory queue | Implemented |
-| Round-robin worker scheduler | Implemented |
-| HTTP API: submit, inspect, list, dispatch | Implemented |
-| Persistent queue / worker leases | Planned |
-| Heartbeats / node discovery | Planned |
-| Retry policy / dead-letter queue | Planned |
-| Replicated metadata / leader election | Planned |
-
-This repository is intentionally developed in verifiable increments. Features marked planned are not represented as implemented.
+- HTTP API for job submission, inspection, and worker registration
+- Standalone worker process with heartbeat and polling
+- Atomic in-memory job claims with expiring leases
+- Worker ownership checks on completion
+- Retry limits and terminal failure state
+- Automatic recovery of jobs whose worker lease expires
+- Built-in task handlers: `echo`, `uppercase`, `reverse`, and bounded `sleep`
+- Basic Prometheus text metrics at `/metrics`
+- Graceful controller shutdown and Go race-test CI
 
 ## Architecture
 
 ```text
-                 +----------------------+
- Client -------->| ORBIT HTTP API       |
-                 | submit / inspect     |
-                 +----------+-----------+
-                            |
-                            v
-                 +----------------------+
-                 | Job Queue            |
-                 | enqueue / claim      |
-                 +----------+-----------+
-                            |
-                            v
-                 +----------------------+
-                 | Scheduler            |
-                 | worker selection     |
-                 +----------+-----------+
-                            |
-                            v
-                 +----------------------+
-                 | Worker Registry      |
-                 | (in-memory, v1)      |
-                 +----------------------+
+             Client
+               |
+               v
+       +------------------+
+       | ORBIT Controller |
+       | HTTP API         |
+       +--------+---------+
+                |
+       +--------+---------+
+       |                  |
+       v                  v
++--------------+   +----------------+
+| Job Store    |   | Worker Registry|
+| queue/leases |   | heartbeat/TTL  |
++------+-------+   +--------+-------+
+       |                    ^
+       | claim              | register / heartbeat
+       v                    |
+  +-------------------------------+
+  | ORBIT Worker Agent(s)         |
+  | execute -> acknowledge result |
+  +-------------------------------+
 ```
 
-## Quick start
+## Requirements
 
-Requires Go 1.22 or newer.
+- Go 1.22+
+
+## Run locally
+
+Terminal 1 — controller:
 
 ```bash
-go test ./...
 go run ./cmd/orbitd
 ```
 
-The API listens on `:8080` by default.
-
-### Submit a job
+Terminal 2 — worker:
 
 ```bash
-curl -sS -X POST http://localhost:8080/v1/jobs \
+ORBIT_WORKER_ID=worker-01 go run ./cmd/orbit-worker
+```
+
+On PowerShell:
+
+```powershell
+$env:ORBIT_WORKER_ID = "worker-01"
+go run ./cmd/orbit-worker
+```
+
+The controller listens on `:8080` by default. Configure it with:
+
+| Variable | Default | Purpose |
+|---|---:|---|
+| `ORBIT_ADDR` | `:8080` | HTTP listen address |
+| `ORBIT_LEASE_DURATION` | `30s` | Job claim lease |
+| `ORBIT_WORKER_TTL` | `90s` | Worker expiry threshold |
+| `ORBIT_URL` | `http://127.0.0.1:8080` | Worker controller URL |
+| `ORBIT_WORKER_ID` | hostname | Stable worker identifier |
+
+## Submit work
+
+```bash
+curl -X POST http://localhost:8080/v1/jobs \
   -H 'content-type: application/json' \
-  -d '{"kind":"echo","payload":{"message":"hello orbit"}}'
+  -d '{"kind":"uppercase","payload":{"value":"hello orbit"},"max_attempts":3}'
 ```
 
-### List jobs
+Supported job payloads:
+
+| Kind | Payload | Result |
+|---|---|---|
+| `echo` | `{"message":"hello"}` | Same message |
+| `uppercase` | `{"value":"hello"}` | `HELLO` |
+| `reverse` | `{"value":"orbit"}` | `tibro` |
+| `sleep` | `{"duration":"250ms"}` | Completed duration |
+
+Inspect jobs and workers:
 
 ```bash
-curl -sS http://localhost:8080/v1/jobs
-```
+curl http://localhost:8080/v1/jobs
+curl http://localhost:8080/v1/workers
+curl http://localhost:8080/v1/jobs/job-00000001
+curl http://localhost:8080/metrics
+``
 
-### Dispatch a queued job
+## HTTP API
 
-```bash
-curl -sS -X POST http://localhost:8080/v1/dispatch
-```
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/healthz` | Liveness |
+| GET | `/metrics` | Prometheus-style counters |
+| POST | `/v1/jobs` | Submit job |
+| GET | `/v1/jobs` | List jobs |
+| GET | `/v1/jobs/{id}` | Inspect job |
+| POST | `/v1/workers` | Register worker |
+| GET | `/v1/workers` | List workers |
+| POST | `/v1/workers/{id}/heartbeat` | Refresh worker liveness |
+| POST | `/v1/workers/{id}/claim` | Claim next job |
+| POST | `/v1/jobs/{id}/complete` | Acknowledge result |
 
-## API
+## Reliability model
 
-- `POST /v1/jobs` — validate and enqueue a job
-- `GET /v1/jobs` — list known jobs
-- `GET /v1/jobs/{id}` — inspect one job
-- `POST /v1/dispatch` — claim the next job and select a worker
+ORBIT currently offers **at-least-once dispatch semantics within one controller process**. A lease timeout makes a running job eligible for retry; a worker that completes after losing its lease cannot acknowledge a job it no longer owns. Task handlers should therefore be idempotent.
+
+The current store is volatile: controller restart loses jobs and worker registrations. This release does not claim durable persistence, multi-controller consensus, exactly-once execution, or production security. Those require the persistence and distributed-control milestones below.
 
 ## Development
 
 ```bash
 gofmt -w .
-go test ./...
+go test -race ./...
 go vet ./...
-```
+``
 
-See [ROADMAP.md](ROADMAP.md), [docs/architecture.md](docs/architecture.md), and [CONTRIBUTING.md](CONTRIBUTING.md).
+See [ROADMAP.md](ROADMAP.md) and [docs/architecture.md](docs/architecture.md).
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT.
