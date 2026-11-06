@@ -37,7 +37,7 @@ A lease provides recovery, not exactly-once execution. The per-claim fencing tok
 
 ## Current deployment boundary
 
-The job store and worker registry are in-memory and local to one controller process. A restart loses all state. The worker agent communicates over plain HTTP and the API has no authentication or authorization. Do not expose this development deployment to an untrusted network.
+The job store uses an atomically replaced JSON snapshot on local disk; it survives controller restarts but is single-process and is not safe as a shared multi-controller database. Worker registrations are in-memory and agents re-register when heartbeats fail after a controller restart. Running jobs retain their lease metadata and are recovered after expiry. The worker agent communicates over plain HTTP and the API has no authentication or authorization. Do not expose this development deployment to an untrusted network.
 
 ## Next engineering milestones
 
