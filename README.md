@@ -2,7 +2,7 @@
 
 **A distributed job orchestration system written in Go.**
 
-ORBIT provides a control-plane API, worker registry, lease-based job claims, retries, abandoned-work recovery, and a standalone worker agent. The current release is a single-controller, in-memory deployment intended for local development and systems experimentation.
+ORBIT provides a control-plane API, worker registry, lease-based job claims, retries, abandoned-work recovery, and a standalone worker agent. The current release is a single-controller deployment with an atomically persisted JSON job store, intended for local development and systems experimentation.
 
 ## Features
 
@@ -75,6 +75,7 @@ The controller listens on `:8080` by default. Configure it with:
 | `ORBIT_ADDR` | `:8080` | HTTP listen address |
 | `ORBIT_LEASE_DURATION` | `30s` | Job claim lease |
 | `ORBIT_WORKER_TTL` | `90s` | Worker expiry threshold |
+| `ORBIT_DATA_FILE` | `./data/orbit.json` | Durable job snapshot path |
 | `ORBIT_URL` | `http://127.0.0.1:8080` | Worker controller URL |
 | `ORBIT_WORKER_ID` | hostname | Stable worker identifier |
 
