@@ -1,0 +1,30 @@
+services:
+  controller:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      ORBIT_ADDR: ":8080"
+      ORBIT_DATA_FILE: /data/orbit.json
+      ORBIT_LEASE_DURATION: 30s
+      ORBIT_WORKER_TTL: 90s
+    volumes:
+      - orbit-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+  worker:
+    build: .
+    entrypoint: ["orbit-worker"]
+    environment:
+      ORBIT_URL: http://controller:8080
+      ORBIT_WORKER_ID: worker-compose-1
+    depends_on:
+      controller:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  orbit-data:
