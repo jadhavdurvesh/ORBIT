@@ -83,5 +83,9 @@ func(f *FileStore) Complete(id,worker,token string,success bool,message string,r
 	err=f.mutate(func()error{var e error;job,e=f.mem.Complete(id,worker,token,success,message,result);return e});return
 }
 func(f *FileStore) RecoverExpired(now time.Time)(count int){
-	_ = f.mutate(func()error{count=f.mem.RecoverExpired(now);return nil});return
+	f.mu.Lock();defer f.mu.Unlock()
+	before:=f.snapshot()
+	count=f.mem.RecoverExpired(now)
+	if count>0 { if err:=f.persist();err!=nil{f.restore(before);return 0} }
+	return
 }
