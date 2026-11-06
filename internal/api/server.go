@@ -52,10 +52,10 @@ func(s *Server)heartbeat(w http.ResponseWriter,id string){if id==""||strings.Con
 func(s *Server)claim(w http.ResponseWriter,id string){if id==""||strings.Contains(id,"/"){writeJSON(w,400,map[string]string{"error":"invalid worker id"});return};if _,ok:=s.workers.Heartbeat(id);!ok{writeJSON(w,404,map[string]string{"error":"worker not registered"});return};j,err:=s.jobs.Claim(id,s.lease)
 	if errors.Is(err,queue.ErrEmpty){w.WriteHeader(http.StatusNoContent);return};if err!=nil{writeJSON(w,500,map[string]string{"error":err.Error()});return};writeJSON(w,200,j)
 }
-type completionRequest struct{WorkerID string `json:"worker_id"`;Success bool `json:"success"`;Error string `json:"error,omitempty"`;Result map[string]string `json:"result,omitempty"`}
+type completionRequest struct{WorkerID string `json:"worker_id"`;LeaseToken string `json:"lease_token"`;Success bool `json:"success"`;Error string `json:"error,omitempty"`;Result map[string]string `json:"result,omitempty"`}
 func(s *Server)complete(w http.ResponseWriter,r *http.Request,id string){
 	if id==""||strings.Contains(id,"/"){writeJSON(w,400,map[string]string{"error":"invalid job id"});return};var req completionRequest;if !decode(w,r,&req){return}
-	j,err:=s.jobs.Complete(id,req.WorkerID,req.Success,req.Error,req.Result)
+	j,err:=s.jobs.Complete(id,req.WorkerID,req.LeaseToken,req.Success,req.Error,req.Result)
 	switch{case errors.Is(err,queue.ErrNotFound):writeJSON(w,404,map[string]string{"error":"job not found"});case errors.Is(err,queue.ErrNotOwner):writeJSON(w,409,map[string]string{"error":"job is not owned by this worker"});case err!=nil:writeJSON(w,500,map[string]string{"error":err.Error()});default:writeJSON(w,200,j)}
 }
 func(s *Server)inspect(w http.ResponseWriter,id string){if id==""||strings.Contains(id,"/"){writeJSON(w,400,map[string]string{"error":"invalid job id"});return};j,err:=s.jobs.Get(id);if errors.Is(err,queue.ErrNotFound){writeJSON(w,404,map[string]string{"error":"job not found"});return};if err!=nil{writeJSON(w,500,map[string]string{"error":"internal error"});return};writeJSON(w,200,j)}
