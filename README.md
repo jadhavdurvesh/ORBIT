@@ -15,6 +15,10 @@ ORBIT provides a control-plane API, worker registry, lease-based job claims, ret
 - Built-in task handlers: `echo`, `uppercase`, `reverse`, and bounded `sleep`
 - Basic Prometheus text metrics at `/metrics`
 - Graceful controller shutdown and Go race-test CI
+- Generated or propagated request IDs via `X-Request-ID`
+- Structured HTTP access logs with request timing
+- Strict JSON request parsing with trailing-value rejection
+- Restart-safe random job identifiers
 
 ## Architecture
 
