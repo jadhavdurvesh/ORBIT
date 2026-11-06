@@ -19,6 +19,8 @@
 
 ## M2 — Operations and packaging
 - [x] Health endpoint
+- [x] Atomic file-backed job persistence
+- [x] Worker re-registration after controller restart
 - [x] Prometheus text metrics
 - [x] Graceful controller shutdown
 - [x] Go race-test CI workflow
