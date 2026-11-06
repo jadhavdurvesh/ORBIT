@@ -13,11 +13,11 @@ func TestClaimCompleteAndRetry(t *testing.T){
 	q:=NewMemory();if err:=q.Enqueue(testJob("a"));err!=nil{t.Fatal(err)}
 	j,err:=q.Claim("worker-1",time.Minute);if err!=nil{t.Fatal(err)}
 	if j.State!=model.StateRunning||j.Attempts!=1||j.WorkerID!="worker-1"{t.Fatalf("unexpected claim: %+v",j)}
-	if _,err=q.Complete("a","wrong",true,"",nil);!errors.Is(err,ErrNotOwner){t.Fatalf("expected ownership error, got %v",err)}
-	j,err=q.Complete("a","worker-1",false,"transient",nil);if err!=nil{t.Fatal(err)}
+	if _,err=q.Complete("a","wrong","",true,"",nil);!errors.Is(err,ErrNotOwner){t.Fatalf("expected ownership error, got %v",err)}
+	j,err=q.Complete("a","worker-1",j.LeaseToken,false,"transient",nil);if err!=nil{t.Fatal(err)}
 	if j.State!=model.StateQueued||j.LastError!="transient"{t.Fatalf("expected retry queue: %+v",j)}
 	j,err=q.Claim("worker-2",time.Minute);if err!=nil{t.Fatal(err)}
-	j,err=q.Complete("a","worker-2",true,"",map[string]string{"message":"done"});if err!=nil{t.Fatal(err)}
+	j,err=q.Complete("a","worker-2",j.LeaseToken,true,"",map[string]string{"message":"done"});if err!=nil{t.Fatal(err)}
 	if j.State!=model.StateSucceeded||j.Result["message"]!="done"{t.Fatalf("result missing: %+v",j)}
 }
 func TestExpiredLeaseRecovery(t *testing.T){
