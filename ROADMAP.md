@@ -24,7 +24,8 @@
 - [x] Prometheus text metrics
 - [x] Graceful controller shutdown
 - [x] Go race-test CI workflow
-- [ ] Structured logging and request IDs
+- [x] Structured logging and request IDs
+- [x] Strict JSON parsing and restart-safe job IDs
 - [ ] Config file and environment validation
 - [ ] Docker images and Compose example
 - [ ] OpenTelemetry tracing
