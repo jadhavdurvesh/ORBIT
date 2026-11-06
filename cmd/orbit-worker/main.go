@@ -58,7 +58,7 @@ func main(){
 	defer heartbeat.Stop()
 	go func(){
 		for range heartbeat.C{
-			if err:=c.post("/v1/workers/"+id+"/heartbeat",map[string]any{},nil);err!=nil{log.Printf("heartbeat: %v",err)}
+			if err:=c.post("/v1/workers/"+id+"/heartbeat",map[string]any{},nil);err!=nil{log.Printf("heartbeat: %v; attempting registration",err);if regErr:=c.post("/v1/workers",worker,nil);regErr!=nil{log.Printf("re-register: %v",regErr)}}
 		}
 	}()
 
