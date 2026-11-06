@@ -24,6 +24,7 @@ type Job struct {
 	ID string `json:"id"`
 	Kind string `json:"kind"`
 	Payload map[string]string `json:"payload"`
+	Result map[string]string `json:"result,omitempty"`
 	State JobState `json:"state"`
 	WorkerID string `json:"worker_id,omitempty"`
 	Attempts int `json:"attempts"`
@@ -35,32 +36,26 @@ type Job struct {
 }
 
 func (j Job) Validate() error {
-	if j.ID == "" { return fmt.Errorf("%w: id is required", ErrInvalidJob) }
-	if j.Kind == "" { return fmt.Errorf("%w: kind is required", ErrInvalidJob) }
-	if j.MaxAttempts < 1 { return fmt.Errorf("%w: max_attempts must be positive", ErrInvalidJob) }
-	if j.Attempts < 0 || j.Attempts > j.MaxAttempts { return fmt.Errorf("%w: invalid attempts", ErrInvalidJob) }
-	switch j.State {
-	case StateQueued, StateRunning, StateSucceeded, StateFailed:
-	default: return fmt.Errorf("%w: unknown state %q", ErrInvalidJob, j.State)
-	}
-	if j.State == StateRunning && (j.WorkerID == "" || j.LeaseExpiresAt == nil) {
-		return fmt.Errorf("%w: running jobs require worker and lease", ErrInvalidJob)
-	}
+	if j.ID=="" { return fmt.Errorf("%w: id is required",ErrInvalidJob) }
+	if j.Kind=="" { return fmt.Errorf("%w: kind is required",ErrInvalidJob) }
+	if j.MaxAttempts<1 { return fmt.Errorf("%w: max_attempts must be positive",ErrInvalidJob) }
+	if j.Attempts<0 || j.Attempts>j.MaxAttempts { return fmt.Errorf("%w: invalid attempts",ErrInvalidJob) }
+	switch j.State { case StateQueued,StateRunning,StateSucceeded,StateFailed: default: return fmt.Errorf("%w: unknown state %q",ErrInvalidJob,j.State) }
+	if j.State==StateRunning && (j.WorkerID=="" || j.LeaseExpiresAt==nil) { return fmt.Errorf("%w: running jobs require worker and lease",ErrInvalidJob) }
 	return nil
 }
 
-func CanTransition(from, to JobState) bool {
+func CanTransition(from,to JobState) bool {
 	switch from {
-	case StateQueued: return to == StateRunning || to == StateFailed
-	case StateRunning: return to == StateSucceeded || to == StateFailed || to == StateQueued
+	case StateQueued: return to==StateRunning || to==StateFailed
+	case StateRunning: return to==StateSucceeded || to==StateFailed || to==StateQueued
 	default: return false
 	}
 }
 
-func (j *Job) Transition(to JobState, now time.Time) error {
-	if !CanTransition(j.State, to) { return fmt.Errorf("%w: %s -> %s", ErrInvalidMove, j.State, to) }
-	j.State = to
-	j.UpdatedAt = now.UTC()
-	if to != StateRunning { j.WorkerID = ""; j.LeaseExpiresAt = nil }
+func (j *Job) Transition(to JobState,now time.Time) error {
+	if !CanTransition(j.State,to) { return fmt.Errorf("%w: %s -> %s",ErrInvalidMove,j.State,to) }
+	j.State=to; j.UpdatedAt=now.UTC()
+	if to!=StateRunning { j.WorkerID=""; j.LeaseExpiresAt=nil }
 	return nil
 }
