@@ -2,6 +2,7 @@ package queue
 
 import (
 	"errors"
+	"time"
 
 	"github.com/jadhavdurvesh/ORBIT/internal/model"
 )
@@ -9,13 +10,15 @@ import (
 var (
 	ErrNotFound = errors.New("job not found")
 	ErrConflict = errors.New("job already exists")
-	ErrEmpty    = errors.New("no queued jobs")
+	ErrEmpty = errors.New("no queued jobs")
+	ErrNotOwner = errors.New("job is not leased to this worker")
 )
 
 type Store interface {
 	Enqueue(model.Job) error
 	Get(string) (model.Job, error)
 	List() []model.Job
-	Claim() (model.Job, error)
-	Update(model.Job) error
+	Claim(workerID string, lease time.Duration) (model.Job, error)
+	Complete(id, workerID string, success bool, message string) (model.Job, error)
+	RecoverExpired(now time.Time) int
 }
