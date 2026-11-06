@@ -16,7 +16,10 @@ func TestClaimCompleteAndRetry(t *testing.T){
 	if _,err=q.Complete("a","wrong","",true,"",nil);!errors.Is(err,ErrNotOwner){t.Fatalf("expected ownership error, got %v",err)}
 	j,err=q.Complete("a","worker-1",j.LeaseToken,false,"transient",nil);if err!=nil{t.Fatal(err)}
 	if j.State!=model.StateQueued||j.LastError!="transient"{t.Fatalf("expected retry queue: %+v",j)}
+	oldToken:=j.LeaseToken
 	j,err=q.Claim("worker-2",time.Minute);if err!=nil{t.Fatal(err)}
+	if j.LeaseToken==oldToken{t.Fatal("lease token must rotate on every claim")}
+	if _,err=q.Complete("a","worker-2",oldToken,true,"",nil);!errors.Is(err,ErrNotOwner){t.Fatalf("stale token accepted: %v",err)}
 	j,err=q.Complete("a","worker-2",j.LeaseToken,true,"",map[string]string{"message":"done"});if err!=nil{t.Fatal(err)}
 	if j.State!=model.StateSucceeded||j.Result["message"]!="done"{t.Fatalf("result missing: %+v",j)}
 }
