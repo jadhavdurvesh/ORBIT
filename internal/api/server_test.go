@@ -40,3 +40,10 @@ func TestUnknownWorkerCannotClaim(t *testing.T) {
  rec := request(t, s, http.MethodPost, "/v1/workers/missing/claim", "{}")
  if rec.Code != http.StatusNotFound { t.Fatalf("got %d", rec.Code) }
 }
+
+func TestRequestIDAndStrictJSON(t *testing.T) {
+ s := newTestServer()
+ rec := request(t, s, http.MethodPost, "/v1/jobs", `{"kind":"echo","payload":{} } {}`)
+ if rec.Code != http.StatusBadRequest { t.Fatalf("expected bad request for trailing JSON, got %d", rec.Code) }
+ if rec.Header().Get("X-Request-ID") == "" { t.Fatal("missing generated request id") }
+}
