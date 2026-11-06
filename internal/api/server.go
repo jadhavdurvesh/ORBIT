@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"log/slog"
+	"crypto/rand"
+	"encoding/hex"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -18,6 +21,16 @@ type Server struct { jobs queue.Store; workers *scheduler.Registry; lease time.D
 func NewServer(jobs queue.Store,workers *scheduler.Registry,lease time.Duration)*Server{return &Server{jobs:jobs,workers:workers,lease:lease}}
 
 func(s *Server)ServeHTTP(w http.ResponseWriter,r *http.Request){
+    requestID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
+    if requestID == "" || len(requestID) > 128 {
+        var raw [16]byte
+        if _, err := rand.Read(raw[:]); err == nil { requestID = hex.EncodeToString(raw[:]) } else { requestID = fmt.Sprintf("req-%d", s.sequence.Add(1)) }
+    }
+    w.Header().Set("X-Request-ID", requestID)
+    started := time.Now()
+    recorder := &statusWriter{ResponseWriter:w, status:http.StatusOK}
+    defer func(){ slog.Info("http request", "request_id", requestID, "method", r.Method, "path", r.URL.Path, "status", recorder.status, "duration_ms", time.Since(started).Milliseconds()) }()
+    w = recorder
 	w.Header().Set("content-type","application/json")
 	switch{
 	case r.URL.Path=="/healthz"&&r.Method==http.MethodGet:writeJSON(w,200,map[string]string{"status":"ok"})
@@ -67,3 +80,6 @@ func(s *Server)metrics(w http.ResponseWriter){
 	fmt.Fprintf(w,"orbit_workers_registered %d\n",len(s.workers.List()))
 }
 func writeJSON(w http.ResponseWriter,status int,value any){w.WriteHeader(status);if status!=http.StatusNoContent{_ = json.NewEncoder(w).Encode(value)}}
+
+type statusWriter struct { http.ResponseWriter; status int }
+func (w *statusWriter) WriteHeader(code int) { w.status=code; w.ResponseWriter.WriteHeader(code) }
