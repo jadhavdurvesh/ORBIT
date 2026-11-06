@@ -70,7 +70,7 @@ func main(){
 		if err==errNoJob{continue}
 		if err!=nil{log.Printf("claim: %v",err);continue}
 		result,runErr:=execute(job)
-		completion:=map[string]any{"worker_id":id,"success":runErr==nil,"result":result}
+		completion:=map[string]any{"worker_id":id,"lease_token":job.LeaseToken,"success":runErr==nil,"result":result}
 		if runErr!=nil{completion["error"]=runErr.Error()}
 		if err:=c.post("/v1/jobs/"+job.ID+"/complete",completion,nil);err!=nil{log.Printf("complete %s: %v",job.ID,err)}
 	}
