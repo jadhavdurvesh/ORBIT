@@ -96,7 +96,7 @@ This starts one controller and one worker, and persists job snapshots in the nam
 ```bash
 curl -X POST http://localhost:8080/v1/jobs \
   -H 'content-type: application/json' \
-  -d '{"kind":"uppercase","payload":{"value":"hello orbit"},"max_attempts":3}'
+  -d '{"kind":"uppercase","payload":{"value":"hello orbit"},"max_attempts":3,"idempotency_key":"mission-42","run_at":"2026-11-08T10:00:00Z"}'
 ```
 
 Supported job payloads:
@@ -157,3 +157,6 @@ MIT.
 Job submission accepts an optional `Idempotency-Key` HTTP header or `idempotency_key` JSON field. Repeating a submission with the same key returns the original job rather than creating a second job. Keys are stored with the job snapshot and are scoped to this single ORBIT store/controller. This does not make worker side effects exactly-once; handlers must remain idempotent.
 
 The file-backed snapshot is durable across a single controller restart, but it is not a transactional database and does not support safe concurrent multi-controller access. The delivery model remains at-least-once.
+
+
+Scheduled jobs may include an RFC3339 `run_at` timestamp. Workers cannot claim the job before that UTC instant; ready jobs remain claimable while scheduled jobs wait. Scheduling is persisted by the file-backed snapshot. This is a single-controller feature, not a distributed scheduler.
