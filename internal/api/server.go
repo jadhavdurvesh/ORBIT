@@ -55,10 +55,18 @@ func decode(w http.ResponseWriter,r *http.Request,dst any)bool{
 	r.Body=http.MaxBytesReader(w,r.Body,1<<20);d:=json.NewDecoder(r.Body);d.DisallowUnknownFields()
 	if err:=d.Decode(dst);err!=nil{writeJSON(w,400,map[string]string{"error":"invalid JSON: "+err.Error()});return false}; var extra any; if err:=d.Decode(&extra); err != io.EOF { writeJSON(w,400,map[string]string{"error":"request body must contain exactly one JSON value"}); return false }; return true
 }
-type submitRequest struct{Kind string `json:"kind"`;Payload map[string]string `json:"payload"`;MaxAttempts int `json:"max_attempts"`}
+type submitRequest struct{Kind string `json:"kind"`;Payload map[string]string `json:"payload"`;MaxAttempts int `json:"max_attempts"`;IdempotencyKey string `json:"idempotency_key,omitempty"`}
 func(s *Server)submit(w http.ResponseWriter,r *http.Request){
 	var req submitRequest;if !decode(w,r,&req){return};if req.MaxAttempts==0{req.MaxAttempts=3}
-	now:=time.Now().UTC();j:=model.Job{ID:func() string { var id [16]byte; if _, err := rand.Read(id[:]); err != nil { return fmt.Sprintf("job-%d", s.sequence.Add(1)) }; return "job-" + hex.EncodeToString(id[:]) }(),Kind:req.Kind,Payload:req.Payload,State:model.StateQueued,MaxAttempts:req.MaxAttempts,CreatedAt:now,UpdatedAt:now}
+	key:=strings.TrimSpace(req.IdempotencyKey)
+	if key=="" { key=strings.TrimSpace(r.Header.Get("Idempotency-Key")) }
+	if len(key)>256 { writeJSON(w,400,map[string]string{"error":"idempotency key exceeds 256 characters"});return }
+	if key!="" {
+		existing,err:=s.jobs.FindByIdempotencyKey(key)
+		if err==nil { writeJSON(w,200,existing);return }
+		if !errors.Is(err,queue.ErrNotFound) { writeJSON(w,500,map[string]string{"error":"idempotency lookup failed"});return }
+	}
+	now:=time.Now().UTC();j:=model.Job{IdempotencyKey:key,ID:func() string { var id [16]byte; if _, err := rand.Read(id[:]); err != nil { return fmt.Sprintf("job-%d", s.sequence.Add(1)) }; return "job-" + hex.EncodeToString(id[:]) }(),Kind:req.Kind,Payload:req.Payload,State:model.StateQueued,MaxAttempts:req.MaxAttempts,CreatedAt:now,UpdatedAt:now}
 	if err:=j.Validate();err!=nil{writeJSON(w,400,map[string]string{"error":err.Error()});return};if err:=s.jobs.Enqueue(j);err!=nil{writeJSON(w,409,map[string]string{"error":err.Error()});return};writeJSON(w,201,j)
 }
 func(s *Server)registerWorker(w http.ResponseWriter,r *http.Request){var worker scheduler.Worker;if !decode(w,r,&worker){return};if strings.TrimSpace(worker.ID)==""{writeJSON(w,400,map[string]string{"error":"worker id is required"});return};writeJSON(w,201,s.workers.Register(worker))}
