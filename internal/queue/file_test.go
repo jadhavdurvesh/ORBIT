@@ -22,3 +22,15 @@ func TestFileStorePersistsJobLifecycle(t *testing.T){
 	got,err=final.Get("persisted");if err!=nil{t.Fatal(err)}
 	if got.State!=model.StateSucceeded||got.Result["answer"]!="42"||completed.State!=model.StateSucceeded{t.Fatalf("completion not persisted: %+v",got)}
 }
+
+func TestFileStorePersistsRetryAvailability(t *testing.T) {
+ path:=filepath.Join(t.TempDir(),"jobs.json")
+ store,err:=NewFileStore(path);if err!=nil{t.Fatal(err)}
+ if err=store.Enqueue(testJob("retry-persist"));err!=nil{t.Fatal(err)}
+ job,err:=store.Claim("worker-a",time.Minute);if err!=nil{t.Fatal(err)}
+ job,err=store.Complete(job.ID,"worker-a",job.LeaseToken,false,"temporary",nil);if err!=nil{t.Fatal(err)}
+ if job.RetryAt==nil{t.Fatal("retry timestamp missing")}
+ reopened,err:=NewFileStore(path);if err!=nil{t.Fatal(err)}
+ loaded,err:=reopened.Get(job.ID);if err!=nil{t.Fatal(err)}
+ if loaded.RetryAt==nil||!loaded.RetryAt.Equal(*job.RetryAt){t.Fatalf("retry timestamp not persisted: got %v want %v",loaded.RetryAt,job.RetryAt)}
+}
