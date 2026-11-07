@@ -34,3 +34,14 @@ func TestFileStorePersistsRetryAvailability(t *testing.T) {
  loaded,err:=reopened.Get(job.ID);if err!=nil{t.Fatal(err)}
  if loaded.RetryAt==nil||!loaded.RetryAt.Equal(*job.RetryAt){t.Fatalf("retry timestamp not persisted: got %v want %v",loaded.RetryAt,job.RetryAt)}
 }
+
+func TestFileStorePersistsRenewedLease(t *testing.T) {
+ path:=filepath.Join(t.TempDir(),"jobs.json")
+ store,err:=NewFileStore(path);if err!=nil{t.Fatal(err)}
+ if err=store.Enqueue(testJob("renew-persist"));err!=nil{t.Fatal(err)}
+ job,err:=store.Claim("worker",time.Minute);if err!=nil{t.Fatal(err)}
+ renewed,err:=store.RenewLease(job.ID,"worker",job.LeaseToken,3*time.Minute);if err!=nil{t.Fatal(err)}
+ reopened,err:=NewFileStore(path);if err!=nil{t.Fatal(err)}
+ loaded,err:=reopened.Get(job.ID);if err!=nil{t.Fatal(err)}
+ if loaded.LeaseExpiresAt==nil||!loaded.LeaseExpiresAt.Equal(*renewed.LeaseExpiresAt){t.Fatalf("renewed lease not persisted: %+v",loaded.LeaseExpiresAt)}
+}
