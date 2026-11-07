@@ -162,3 +162,5 @@ The file-backed snapshot is durable across a single controller restart, but it i
 Scheduled jobs may include an RFC3339 `run_at` timestamp. Workers cannot claim the job before that UTC instant; ready jobs remain claimable while scheduled jobs wait. Scheduling is persisted by the file-backed snapshot. This is a single-controller feature, not a distributed scheduler.
 
 Scheduled submissions can include `run_at` as an RFC3339 timestamp. ORBIT persists this field in the file snapshot and does not offer the job to workers until its scheduled time. This is a single-controller scheduling feature; it is not a distributed scheduler.
+
+Jobs that fail or lose an expired worker lease are retried with exponential backoff (250 ms base, capped at 30 seconds). The next claim is deferred until `retry_at`; the timestamp is persisted by the file-backed store. This is a retry delay, not a guarantee of exactly-once execution.
