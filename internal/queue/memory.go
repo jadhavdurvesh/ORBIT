@@ -12,6 +12,12 @@ type Memory struct{mu sync.RWMutex;jobs map[string]model.Job}
 func NewMemory()*Memory{return &Memory{jobs:make(map[string]model.Job)}}
 func(m *Memory)Enqueue(j model.Job)error{if err:=j.Validate();err!=nil{return err};m.mu.Lock();defer m.mu.Unlock();if _,ok:=m.jobs[j.ID];ok{return ErrConflict};m.jobs[j.ID]=j;return nil}
 func(m *Memory)Get(id string)(model.Job,error){m.mu.RLock();defer m.mu.RUnlock();j,ok:=m.jobs[id];if !ok{return model.Job{},ErrNotFound};return j,nil}
+func(m *Memory)FindByIdempotencyKey(key string)(model.Job,error){
+	if key=="" { return model.Job{},ErrNotFound }
+	m.mu.RLock();defer m.mu.RUnlock()
+	for _,job:=range m.jobs { if job.IdempotencyKey==key { return job,nil } }
+	return model.Job{},ErrNotFound
+}
 func(m *Memory)List()[]model.Job{m.mu.RLock();defer m.mu.RUnlock();out:=make([]model.Job,0,len(m.jobs));for _,j:=range m.jobs{out=append(out,j)};sort.Slice(out,func(i,j int)bool{if out[i].CreatedAt.Equal(out[j].CreatedAt){return out[i].ID<out[j].ID};return out[i].CreatedAt.Before(out[j].CreatedAt)});return out}
 func(m *Memory)Claim(workerID string,lease time.Duration)(model.Job,error){
 	if workerID==""||lease<=0{return model.Job{},model.ErrInvalidJob}
