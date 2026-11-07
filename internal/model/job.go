@@ -27,6 +27,7 @@ type Job struct{
 	Attempts int `json:"attempts"`
 	MaxAttempts int `json:"max_attempts"`
 	LeaseExpiresAt *time.Time `json:"lease_expires_at,omitempty"`
+	RunAt *time.Time `json:"run_at,omitempty"`
 	LastError string `json:"last_error,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
