@@ -75,6 +75,7 @@ func(f *FileStore) mutate(fn func()error)error {
 }
 func(f *FileStore) Enqueue(job model.Job)error{return f.mutate(func()error{return f.mem.Enqueue(job)})}
 func(f *FileStore) Get(id string)(model.Job,error){return f.mem.Get(id)}
+func(f *FileStore) FindByIdempotencyKey(key string)(model.Job,error){return f.mem.FindByIdempotencyKey(key)}
 func(f *FileStore) List()[]model.Job{return f.mem.List()}
 func(f *FileStore) Claim(worker string,lease time.Duration)(job model.Job,err error){
 	err=f.mutate(func()error{var e error;job,e=f.mem.Claim(worker,lease);return e});return
