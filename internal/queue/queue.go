@@ -5,6 +5,7 @@ var(ErrNotFound=errors.New("job not found");ErrConflict=errors.New("job already 
 type Store interface{
 	Enqueue(model.Job)error
 	Get(string)(model.Job,error)
+	FindByIdempotencyKey(string)(model.Job,error)
 	List()[]model.Job
 	Claim(workerID string,lease time.Duration)(model.Job,error)
 	Complete(id,workerID,leaseToken string,success bool,message string,result map[string]string)(model.Job,error)
