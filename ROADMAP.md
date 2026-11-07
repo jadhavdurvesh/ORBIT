@@ -44,3 +44,5 @@
 - [ ] Leader election and replicated metadata
 - [ ] Partition and chaos testing
 - [ ] Horizontal scaling benchmarks
+
+- [x] Idempotency keys for HTTP job submission (single-store scope)
