@@ -18,6 +18,7 @@ func TestClaimCompleteAndRetry(t *testing.T){
 	j,err=q.Complete("a","worker-1",j.LeaseToken,false,"transient",nil);if err!=nil{t.Fatal(err)}
 	if j.State!=model.StateQueued||j.LastError!="transient"{t.Fatalf("expected retry queue: %+v",j)}
 	oldToken:=firstToken
+	q.mu.Lock(); stored:=q.jobs["a"]; ready:=time.Now().Add(-time.Second); stored.RetryAt=&ready; q.jobs["a"]=stored; q.mu.Unlock()
 	j,err=q.Claim("worker-2",time.Minute);if err!=nil{t.Fatal(err)}
 	if j.LeaseToken==oldToken{t.Fatal("lease token must rotate on every claim")}
 	if _,err=q.Complete("a","worker-2",oldToken,true,"",nil);!errors.Is(err,ErrNotOwner){t.Fatalf("stale token accepted: %v",err)}
