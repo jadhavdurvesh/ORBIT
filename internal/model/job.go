@@ -17,6 +17,7 @@ var(ErrInvalidJob=errors.New("invalid job");ErrInvalidMove=errors.New("invalid j
 
 type Job struct{
 	ID string `json:"id"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
 	Kind string `json:"kind"`
 	Payload map[string]string `json:"payload"`
 	Result map[string]string `json:"result,omitempty"`
