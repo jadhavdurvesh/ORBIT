@@ -56,3 +56,15 @@ func TestRetryBackoffDefersClaimUntilRetryAt(t *testing.T) {
  q.mu.Lock(); stored:=q.jobs[job.ID]; past:=time.Now().Add(-time.Second);stored.RetryAt=&past;q.jobs[job.ID]=stored;q.mu.Unlock()
  if _,err=q.Claim("worker-b",time.Minute);err!=nil{t.Fatalf("retry should be claimable after backoff: %v",err)}
 }
+
+func TestRenewLeaseExtendsExpiryAndRejectsStaleOwner(t *testing.T) {
+ q:=NewMemory(); if err:=q.Enqueue(testJob("renew"));err!=nil{t.Fatal(err)}
+ job,err:=q.Claim("worker-a",time.Second);if err!=nil{t.Fatal(err)}
+ oldExpiry:=*job.LeaseExpiresAt
+ renewed,err:=q.RenewLease(job.ID,"worker-a",job.LeaseToken,2*time.Minute);if err!=nil{t.Fatal(err)}
+ if !renewed.LeaseExpiresAt.After(oldExpiry){t.Fatalf("lease was not extended: old=%v new=%v",oldExpiry,renewed.LeaseExpiresAt)}
+ if renewed.LeaseToken!=job.LeaseToken{t.Fatal("renewal must preserve fencing token")}
+ if _,err=q.RenewLease(job.ID,"worker-b",job.LeaseToken,time.Minute);!errors.Is(err,ErrNotOwner){t.Fatalf("wrong worker renewed lease: %v",err)}
+ if _,err=q.RenewLease(job.ID,"worker-a","stale-token",time.Minute);!errors.Is(err,ErrNotOwner){t.Fatalf("stale token renewed lease: %v",err)}
+ if _,err=q.RenewLease(job.ID,"worker-a",job.LeaseToken,0);!errors.Is(err,model.ErrInvalidJob){t.Fatalf("zero lease accepted: %v",err)}
+}
