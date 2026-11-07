@@ -10,5 +10,6 @@ type Store interface{
 	List()[]model.Job
 	Claim(workerID string,lease time.Duration)(model.Job,error)
 	Complete(id,workerID,leaseToken string,success bool,message string,result map[string]string)(model.Job,error)
+	RenewLease(id,workerID,leaseToken string,lease time.Duration)(model.Job,error)
 	RecoverExpired(now time.Time)int
 }
