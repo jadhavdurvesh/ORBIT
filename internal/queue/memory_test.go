@@ -29,3 +29,19 @@ func TestExpiredLeaseRecovery(t *testing.T){
 	if n:=q.RecoverExpired(time.Now().Add(time.Second));n!=1{t.Fatalf("recovered %d jobs",n)}
 	got,_:=q.Get(j.ID);if got.State!=model.StateQueued||got.WorkerID!=""{t.Fatalf("lease not recovered: %+v",got)}
 }
+
+func TestScheduledJobIsNotClaimedEarly(t *testing.T) {
+	q := NewMemory()
+	job := testJob("scheduled")
+	runAt := time.Now().Add(2 * time.Hour).UTC()
+	job.RunAt = &runAt
+	if err := q.Enqueue(job); err != nil { t.Fatal(err) }
+	if _, err := q.Claim("worker", time.Minute); !errors.Is(err, ErrEmpty) {
+		t.Fatalf("future job should not be claimable, got %v", err)
+	}
+	job.RunAt = nil
+	if err := q.Enqueue(testJob("ready")); err != nil { t.Fatal(err) }
+	if got, err := q.Claim("worker", time.Minute); err != nil || got.ID != "ready" {
+		t.Fatalf("ready job should be claimable while scheduled job waits: job=%+v err=%v", got, err)
+	}
+}
