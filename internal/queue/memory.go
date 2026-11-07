@@ -50,3 +50,14 @@ func(m *Memory)Complete(id,workerID,token string,success bool,message string,res
 	m.jobs[id]=j;return j,nil
 }
 func(m *Memory)RecoverExpired(now time.Time)int{m.mu.Lock();defer m.mu.Unlock();n:=0;for id,j:=range m.jobs{if j.State!=model.StateRunning||j.LeaseExpiresAt==nil||j.LeaseExpiresAt.After(now){continue};j.LastError="worker lease expired";if j.Attempts<j.MaxAttempts{_ = j.Transition(model.StateQueued,now);delay:=250*time.Millisecond*time.Duration(1<<min(j.Attempts-1,7));if delay>30*time.Second{delay=30*time.Second};retryAt:=now.Add(delay);j.RetryAt=&retryAt}else{_ = j.Transition(model.StateFailed,now);j.RetryAt=nil};m.jobs[id]=j;n++};return n}
+
+// RenewLease extends a running job's lease without changing its fencing token.
+func(m *Memory)RenewLease(id,workerID,token string,lease time.Duration)(model.Job,error){
+ if lease<=0{return model.Job{},model.ErrInvalidJob}
+ m.mu.Lock();defer m.mu.Unlock()
+ j,ok:=m.jobs[id];if !ok{return model.Job{},ErrNotFound}
+ if j.State!=model.StateRunning||j.WorkerID!=workerID||j.LeaseToken==""||j.LeaseToken!=token{return model.Job{},ErrNotOwner}
+ expiry:=time.Now().UTC().Add(lease);j.LeaseExpiresAt=&expiry;j.UpdatedAt=time.Now().UTC()
+ if err:=j.Validate();err!=nil{return model.Job{},err}
+ m.jobs[id]=j;return j,nil
+}
