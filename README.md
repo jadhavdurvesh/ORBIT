@@ -136,7 +136,7 @@ curl http://localhost:8080/metrics
 
 ORBIT currently offers **at-least-once dispatch semantics within one controller process**. A lease timeout makes a running job eligible for retry; a worker that completes after losing its lease cannot acknowledge a job it no longer owns. Task handlers should therefore be idempotent.
 
-The current store is volatile: controller restart loses jobs and worker registrations. This release does not claim durable persistence, multi-controller consensus, exactly-once execution, or production security. Those require the persistence and distributed-control milestones below.
+The current file-backed store persists job snapshots across a single controller restart. It is intended for one controller process and does not provide transactional database semantics, multi-controller coordination, exactly-once side effects, or production security.
 
 ## Development
 
