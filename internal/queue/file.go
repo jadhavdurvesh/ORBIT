@@ -100,3 +100,7 @@ func(f *FileStore) RecoverExpired(now time.Time)(count int){
 	if count>0 { if err:=f.persist();err!=nil{f.restore(before);return 0} }
 	return
 }
+
+func(f *FileStore) RenewLease(id,worker,token string,lease time.Duration)(job model.Job,err error){
+ err=f.mutate(func()error{var e error;job,e=f.mem.RenewLease(id,worker,token,lease);return e});return
+}
