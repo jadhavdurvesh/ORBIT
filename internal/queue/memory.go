@@ -56,8 +56,10 @@ func(m *Memory)RenewLease(id,workerID,token string,lease time.Duration)(model.Jo
  if lease<=0{return model.Job{},model.ErrInvalidJob}
  m.mu.Lock();defer m.mu.Unlock()
  j,ok:=m.jobs[id];if !ok{return model.Job{},ErrNotFound}
+ now:=time.Now().UTC()
  if j.State!=model.StateRunning||j.WorkerID!=workerID||j.LeaseToken==""||j.LeaseToken!=token{return model.Job{},ErrNotOwner}
- expiry:=time.Now().UTC().Add(lease);j.LeaseExpiresAt=&expiry;j.UpdatedAt=time.Now().UTC()
+ if j.LeaseExpiresAt==nil||!j.LeaseExpiresAt.After(now){return model.Job{},ErrNotOwner}
+ expiry:=now.Add(lease);j.LeaseExpiresAt=&expiry;j.UpdatedAt=now
  if err:=j.Validate();err!=nil{return model.Job{},err}
  m.jobs[id]=j;return j,nil
 }
