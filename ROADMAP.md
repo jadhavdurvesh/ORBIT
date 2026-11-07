@@ -46,3 +46,5 @@
 - [ ] Horizontal scaling benchmarks
 
 - [x] Idempotency keys for HTTP job submission (single-store scope)
+
+- [x] Delayed job scheduling with persisted `run_at` timestamps and claim-time gating
