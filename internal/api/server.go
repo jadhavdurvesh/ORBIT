@@ -44,6 +44,8 @@ func(s *Server)ServeHTTP(w http.ResponseWriter,r *http.Request){
 		s.heartbeat(w,strings.TrimSuffix(strings.TrimPrefix(r.URL.Path,"/v1/workers/"),"/heartbeat"))
 	case strings.HasPrefix(r.URL.Path,"/v1/workers/")&&strings.HasSuffix(r.URL.Path,"/claim")&&r.Method==http.MethodPost:
 		s.claim(w,strings.TrimSuffix(strings.TrimPrefix(r.URL.Path,"/v1/workers/"),"/claim"))
+	case strings.HasPrefix(r.URL.Path,"/v1/jobs/")&&strings.HasSuffix(r.URL.Path,"/renew")&&r.Method==http.MethodPost:
+		s.renew(w,r,strings.TrimSuffix(strings.TrimPrefix(r.URL.Path,"/v1/jobs/"),"/renew"))
 	case strings.HasPrefix(r.URL.Path,"/v1/jobs/")&&strings.HasSuffix(r.URL.Path,"/complete")&&r.Method==http.MethodPost:
 		s.complete(w,r,strings.TrimSuffix(strings.TrimPrefix(r.URL.Path,"/v1/jobs/"),"/complete"))
 	case strings.HasPrefix(r.URL.Path,"/v1/jobs/")&&r.Method==http.MethodGet:s.inspect(w,strings.TrimPrefix(r.URL.Path,"/v1/jobs/"))
@@ -73,6 +75,16 @@ func(s *Server)heartbeat(w http.ResponseWriter,id string){if id==""||strings.Con
 func(s *Server)claim(w http.ResponseWriter,id string){if id==""||strings.Contains(id,"/"){writeJSON(w,400,map[string]string{"error":"invalid worker id"});return};if _,ok:=s.workers.Heartbeat(id);!ok{writeJSON(w,404,map[string]string{"error":"worker not registered"});return};j,err:=s.jobs.Claim(id,s.lease)
 	if errors.Is(err,queue.ErrEmpty){w.WriteHeader(http.StatusNoContent);return};if err!=nil{writeJSON(w,500,map[string]string{"error":err.Error()});return};writeJSON(w,200,j)
 }
+
+type renewalRequest struct { WorkerID string `json:"worker_id"`; LeaseToken string `json:"lease_token"`; LeaseSeconds int `json:"lease_seconds"` }
+func(s *Server)renew(w http.ResponseWriter,r *http.Request,id string){
+ if id==""||strings.Contains(id,"/"){writeJSON(w,400,map[string]string{"error":"invalid job id"});return}
+ var req renewalRequest;if !decode(w,r,&req){return}
+ if req.LeaseSeconds<=0||req.LeaseSeconds>3600{writeJSON(w,400,map[string]string{"error":"lease_seconds must be between 1 and 3600"});return}
+ j,err:=s.jobs.RenewLease(id,req.WorkerID,req.LeaseToken,time.Duration(req.LeaseSeconds)*time.Second)
+ switch{case errors.Is(err,queue.ErrNotFound):writeJSON(w,404,map[string]string{"error":"job not found"});case errors.Is(err,queue.ErrNotOwner):writeJSON(w,409,map[string]string{"error":"job is not owned by this worker"});case err!=nil:writeJSON(w,400,map[string]string{"error":err.Error()});default:writeJSON(w,200,j)}
+}
+
 type completionRequest struct{WorkerID string `json:"worker_id"`;LeaseToken string `json:"lease_token"`;Success bool `json:"success"`;Error string `json:"error,omitempty"`;Result map[string]string `json:"result,omitempty"`}
 func(s *Server)complete(w http.ResponseWriter,r *http.Request,id string){
 	if id==""||strings.Contains(id,"/"){writeJSON(w,400,map[string]string{"error":"invalid job id"});return};var req completionRequest;if !decode(w,r,&req){return}
