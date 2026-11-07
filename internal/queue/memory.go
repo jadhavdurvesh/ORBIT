@@ -11,6 +11,18 @@ import(
 type Memory struct{mu sync.RWMutex;jobs map[string]model.Job}
 func NewMemory()*Memory{return &Memory{jobs:make(map[string]model.Job)}}
 func(m *Memory)Enqueue(j model.Job)error{if err:=j.Validate();err!=nil{return err};m.mu.Lock();defer m.mu.Unlock();if _,ok:=m.jobs[j.ID];ok{return ErrConflict};m.jobs[j.ID]=j;return nil}
+func(m *Memory)EnqueueIdempotent(j model.Job)(model.Job,bool,error){
+	if err:=j.Validate();err!=nil{return model.Job{},false,err}
+	m.mu.Lock();defer m.mu.Unlock()
+	if j.IdempotencyKey!="" {
+		for _,existing:=range m.jobs {
+			if existing.IdempotencyKey==j.IdempotencyKey { return existing,false,nil }
+		}
+	}
+	if _,ok:=m.jobs[j.ID];ok{return model.Job{},false,ErrConflict}
+	m.jobs[j.ID]=j
+	return j,true,nil
+}
 func(m *Memory)Get(id string)(model.Job,error){m.mu.RLock();defer m.mu.RUnlock();j,ok:=m.jobs[id];if !ok{return model.Job{},ErrNotFound};return j,nil}
 func(m *Memory)FindByIdempotencyKey(key string)(model.Job,error){
 	if key=="" { return model.Job{},ErrNotFound }
