@@ -34,7 +34,7 @@ func(m *Memory)List()[]model.Job{m.mu.RLock();defer m.mu.RUnlock();out:=make([]m
 func(m *Memory)Claim(workerID string,lease time.Duration)(model.Job,error){
 	if workerID==""||lease<=0{return model.Job{},model.ErrInvalidJob}
 	m.mu.Lock();defer m.mu.Unlock();var selected *model.Job
-	for _,j:=range m.jobs{if j.State!=model.StateQueued{continue};if selected==nil||j.CreatedAt.Before(selected.CreatedAt)||(j.CreatedAt.Equal(selected.CreatedAt)&&j.ID<selected.ID){copy:=j;selected=&copy}}
+	for _,j:=range m.jobs{if j.State!=model.StateQueued{continue};if j.RunAt!=nil&&j.RunAt.After(time.Now()){continue};if selected==nil||j.CreatedAt.Before(selected.CreatedAt)||(j.CreatedAt.Equal(selected.CreatedAt)&&j.ID<selected.ID){copy:=j;selected=&copy}}
 	if selected==nil{return model.Job{},ErrEmpty}
 	token:=make([]byte,24);if _,err:=rand.Read(token);err!=nil{return model.Job{},err}
 	now:=time.Now().UTC();if err:=selected.Transition(model.StateRunning,now);err!=nil{return model.Job{},err}
