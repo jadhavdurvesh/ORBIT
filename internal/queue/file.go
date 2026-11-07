@@ -43,6 +43,8 @@ func(f *FileStore) snapshot() map[string]model.Job {
 		if job.Payload!=nil { p:=make(map[string]string,len(job.Payload));for k,v:=range job.Payload{p[k]=v};job.Payload=p }
 		if job.Result!=nil { p:=make(map[string]string,len(job.Result));for k,v:=range job.Result{p[k]=v};job.Result=p }
 		if job.LeaseExpiresAt!=nil { t:=*job.LeaseExpiresAt;job.LeaseExpiresAt=&t }
+		if job.RunAt!=nil { t:=*job.RunAt;job.RunAt=&t }
+		if job.RetryAt!=nil { t:=*job.RetryAt;job.RetryAt=&t }
 		copy[id]=job
 	}
 	return copy
