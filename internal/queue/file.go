@@ -74,6 +74,14 @@ func(f *FileStore) mutate(fn func()error)error {
 	return nil
 }
 func(f *FileStore) Enqueue(job model.Job)error{return f.mutate(func()error{return f.mem.Enqueue(job)})}
+func(f *FileStore) EnqueueIdempotent(job model.Job)(model.Job,bool,error){
+	f.mu.Lock();defer f.mu.Unlock()
+	before:=f.snapshot()
+	stored,created,err:=f.mem.EnqueueIdempotent(job)
+	if err!=nil||!created{return stored,created,err}
+	if err=f.persist();err!=nil{f.restore(before);return model.Job{},false,err}
+	return stored,true,nil
+}
 func(f *FileStore) Get(id string)(model.Job,error){return f.mem.Get(id)}
 func(f *FileStore) FindByIdempotencyKey(key string)(model.Job,error){return f.mem.FindByIdempotencyKey(key)}
 func(f *FileStore) List()[]model.Job{return f.mem.List()}
