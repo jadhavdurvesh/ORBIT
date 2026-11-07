@@ -45,3 +45,13 @@ func TestScheduledJobIsNotClaimedEarly(t *testing.T) {
 		t.Fatalf("ready job should be claimable while scheduled job waits: job=%+v err=%v", got, err)
 	}
 }
+
+func TestRetryBackoffDefersClaimUntilRetryAt(t *testing.T) {
+ q:=NewMemory(); if err:=q.Enqueue(testJob("backoff"));err!=nil{t.Fatal(err)}
+ job,err:=q.Claim("worker-a",time.Minute);if err!=nil{t.Fatal(err)}
+ job,err=q.Complete(job.ID,"worker-a",job.LeaseToken,false,"temporary failure",nil);if err!=nil{t.Fatal(err)}
+ if job.RetryAt==nil||!job.RetryAt.After(time.Now()){t.Fatalf("expected future retry time: %+v",job.RetryAt)}
+ if _,err=q.Claim("worker-b",time.Minute);!errors.Is(err,ErrEmpty){t.Fatalf("retry claimed before backoff elapsed: %v",err)}
+ q.mu.Lock(); stored:=q.jobs[job.ID]; past:=time.Now().Add(-time.Second);stored.RetryAt=&past;q.jobs[job.ID]=stored;q.mu.Unlock()
+ if _,err=q.Claim("worker-b",time.Minute);err!=nil{t.Fatalf("retry should be claimable after backoff: %v",err)}
+}
