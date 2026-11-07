@@ -151,3 +151,9 @@ See [ROADMAP.md](ROADMAP.md) and [docs/architecture.md](docs/architecture.md).
 ## License
 
 MIT.
+
+## Idempotent submission
+
+Job submission accepts an optional `Idempotency-Key` HTTP header or `idempotency_key` JSON field. Repeating a submission with the same key returns the original job rather than creating a second job. Keys are stored with the job snapshot and are scoped to this single ORBIT store/controller. This does not make worker side effects exactly-once; handlers must remain idempotent.
+
+The file-backed snapshot is durable across a single controller restart, but it is not a transactional database and does not support safe concurrent multi-controller access. The delivery model remains at-least-once.
