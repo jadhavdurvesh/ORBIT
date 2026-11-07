@@ -38,14 +38,14 @@ func(m *Memory)Claim(workerID string,lease time.Duration)(model.Job,error){
 	if selected==nil{return model.Job{},ErrEmpty}
 	token:=make([]byte,24);if _,err:=rand.Read(token);err!=nil{return model.Job{},err}
 	now:=time.Now().UTC();if err:=selected.Transition(model.StateRunning,now);err!=nil{return model.Job{},err}
-	selected.Attempts++;selected.WorkerID=workerID;selected.LeaseToken=hex.EncodeToString(token);expiry:=now.Add(lease);selected.LeaseExpiresAt=&expiry
+	selected.Attempts++;selected.RetryAt=nil;selected.WorkerID=workerID;selected.LeaseToken=hex.EncodeToString(token);expiry:=now.Add(lease);selected.LeaseExpiresAt=&expiry
 	if err:=selected.Validate();err!=nil{return model.Job{},err};m.jobs[selected.ID]=*selected;return *selected,nil
 }
 func(m *Memory)Complete(id,workerID,token string,success bool,message string,result map[string]string)(model.Job,error){
 	m.mu.Lock();defer m.mu.Unlock();j,ok:=m.jobs[id];if !ok{return model.Job{},ErrNotFound}
 	if j.State!=model.StateRunning||j.WorkerID!=workerID||j.LeaseToken==""||j.LeaseToken!=token{return model.Job{},ErrNotOwner}
 	now:=time.Now().UTC();j.LastError=""
-	if success{if err:=j.Transition(model.StateSucceeded,now);err!=nil{return model.Job{},err};j.Result=result
+	if success{if err:=j.Transition(model.StateSucceeded,now);err!=nil{return model.Job{},err};j.RetryAt=nil;j.Result=result
 	}else{j.LastError=message;if j.Attempts<j.MaxAttempts{if err:=j.Transition(model.StateQueued,now);err!=nil{return model.Job{},err};delay:=250*time.Millisecond*time.Duration(1<<min(j.Attempts-1,7));if delay>30*time.Second{delay=30*time.Second};retryAt:=now.Add(delay);j.RetryAt=&retryAt}else{if err:=j.Transition(model.StateFailed,now);err!=nil{return model.Job{},err};j.RetryAt=nil}}
 	m.jobs[id]=j;return j,nil
 }
