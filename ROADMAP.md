@@ -48,3 +48,5 @@
 - [x] Idempotency keys for HTTP job submission (single-store scope)
 
 - [x] Delayed job scheduling with persisted `run_at` timestamps and claim-time gating
+
+Jobs that fail or lose an expired worker lease are retried with exponential backoff (250 ms base, capped at 30 seconds). The next claim is deferred until `retry_at`; the timestamp is persisted by the file-backed store. This is a retry delay, not a guarantee of exactly-once execution.
