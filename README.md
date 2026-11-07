@@ -164,3 +164,7 @@ Scheduled jobs may include an RFC3339 `run_at` timestamp. Workers cannot claim t
 Scheduled submissions can include `run_at` as an RFC3339 timestamp. ORBIT persists this field in the file snapshot and does not offer the job to workers until its scheduled time. This is a single-controller scheduling feature; it is not a distributed scheduler.
 
 Jobs that fail or lose an expired worker lease are retried with exponential backoff (250 ms base, capped at 30 seconds). The next claim is deferred until `retry_at`; the timestamp is persisted by the file-backed store. This is a retry delay, not a guarantee of exactly-once execution.
+
+- Worker lease renewal with fencing-token ownership checks
+- File-backed persistence of renewed lease expiry
+
