@@ -55,13 +55,13 @@ func decode(w http.ResponseWriter,r *http.Request,dst any)bool{
 	r.Body=http.MaxBytesReader(w,r.Body,1<<20);d:=json.NewDecoder(r.Body);d.DisallowUnknownFields()
 	if err:=d.Decode(dst);err!=nil{writeJSON(w,400,map[string]string{"error":"invalid JSON: "+err.Error()});return false}; var extra any; if err:=d.Decode(&extra); err != io.EOF { writeJSON(w,400,map[string]string{"error":"request body must contain exactly one JSON value"}); return false }; return true
 }
-type submitRequest struct{Kind string `json:"kind"`;Payload map[string]string `json:"payload"`;MaxAttempts int `json:"max_attempts"`;IdempotencyKey string `json:"idempotency_key,omitempty"`}
+type submitRequest struct{Kind string `json:"kind"`;Payload map[string]string `json:"payload"`;MaxAttempts int `json:"max_attempts"`;IdempotencyKey string `json:"idempotency_key,omitempty"`;RunAt *time.Time `json:"run_at,omitempty"`}
 func(s *Server)submit(w http.ResponseWriter,r *http.Request){
 	var req submitRequest;if !decode(w,r,&req){return};if req.MaxAttempts==0{req.MaxAttempts=3}
 	key:=strings.TrimSpace(req.IdempotencyKey)
 	if key=="" { key=strings.TrimSpace(r.Header.Get("Idempotency-Key")) }
 	if len(key)>256 { writeJSON(w,400,map[string]string{"error":"idempotency key exceeds 256 characters"});return }
-	now:=time.Now().UTC();j:=model.Job{IdempotencyKey:key,ID:func() string { var id [16]byte; if _, err := rand.Read(id[:]); err != nil { return fmt.Sprintf("job-%d", s.sequence.Add(1)) }; return "job-" + hex.EncodeToString(id[:]) }(),Kind:req.Kind,Payload:req.Payload,State:model.StateQueued,MaxAttempts:req.MaxAttempts,CreatedAt:now,UpdatedAt:now}
+	now:=time.Now().UTC();j:=model.Job{IdempotencyKey:key,ID:func() string { var id [16]byte; if _, err := rand.Read(id[:]); err != nil { return fmt.Sprintf("job-%d", s.sequence.Add(1)) }; return "job-" + hex.EncodeToString(id[:]) }(),Kind:req.Kind,Payload:req.Payload,State:model.StateQueued,MaxAttempts:req.MaxAttempts,RunAt:req.RunAt,CreatedAt:now,UpdatedAt:now}
 	if err:=j.Validate();err!=nil{writeJSON(w,400,map[string]string{"error":err.Error()});return}
 	stored,created,err:=s.jobs.EnqueueIdempotent(j)
 	if err!=nil { writeJSON(w,409,map[string]string{"error":err.Error()});return }
