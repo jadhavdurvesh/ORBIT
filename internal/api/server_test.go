@@ -47,3 +47,18 @@ func TestRequestIDAndStrictJSON(t *testing.T) {
  if rec.Code != http.StatusBadRequest { t.Fatalf("expected bad request for trailing JSON, got %d", rec.Code) }
  if rec.Header().Get("X-Request-ID") == "" { t.Fatal("missing generated request id") }
 }
+
+func TestWorkerCanRenewOwnedLease(t *testing.T) {
+ s:=newTestServer()
+ if rec:=request(t,s,http.MethodPost,"/v1/workers",`{"id":"worker-a","capacity":1}`);rec.Code!=http.StatusCreated{t.Fatalf("register: %d",rec.Code)}
+ if rec:=request(t,s,http.MethodPost,"/v1/jobs",`{"kind":"long-task","payload":{}}`);rec.Code!=http.StatusCreated{t.Fatalf("submit: %d",rec.Code)}
+ claim:=request(t,s,http.MethodPost,"/v1/workers/worker-a/claim","{}")
+ var job struct{ID string `json:"id"`;LeaseToken string `json:"lease_token"`}
+ if err:=json.Unmarshal(claim.Body.Bytes(),&job);err!=nil{t.Fatal(err)}
+ body,_:=json.Marshal(map[string]any{"worker_id":"worker-a","lease_token":job.LeaseToken,"lease_seconds":120})
+ renewed:=request(t,s,http.MethodPost,"/v1/jobs/"+job.ID+"/renew",string(body))
+ if renewed.Code!=http.StatusOK{t.Fatalf("renew: %d %s",renewed.Code,renewed.Body)}
+ stale,_:=json.Marshal(map[string]any{"worker_id":"worker-b","lease_token":job.LeaseToken,"lease_seconds":120})
+ rejected:=request(t,s,http.MethodPost,"/v1/jobs/"+job.ID+"/renew",string(stale))
+ if rejected.Code!=http.StatusConflict{t.Fatalf("wrong owner should be rejected: %d",rejected.Code)}
+}
