@@ -77,3 +77,10 @@ func TestRenewedLeasePreventsPrematureRecovery(t *testing.T) {
  stored,err:=q.Get(job.ID);if err!=nil{t.Fatal(err)}
  if stored.State!=model.StateRunning||!stored.LeaseExpiresAt.Equal(*renewed.LeaseExpiresAt){t.Fatalf("renewed job state changed: %+v",stored)}
 }
+
+func TestExpiredLeaseCannotBeRenewed(t *testing.T) {
+ q:=NewMemory();if err:=q.Enqueue(testJob("expired-renew"));err!=nil{t.Fatal(err)}
+ job,err:=q.Claim("worker-a",time.Second);if err!=nil{t.Fatal(err)}
+ q.mu.Lock();stored:=q.jobs[job.ID];past:=time.Now().Add(-time.Second);stored.LeaseExpiresAt=&past;q.jobs[job.ID]=stored;q.mu.Unlock()
+ if _,err:=q.RenewLease(job.ID,"worker-a",job.LeaseToken,time.Minute);!errors.Is(err,ErrNotOwner){t.Fatalf("expired lease was renewed: %v",err)}
+}
