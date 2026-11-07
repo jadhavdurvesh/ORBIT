@@ -168,3 +168,5 @@ Jobs that fail or lose an expired worker lease are retried with exponential back
 - Worker lease renewal with fencing-token ownership checks
 - File-backed persistence of renewed lease expiry
 
+
+Workers can extend a running job lease through the store contract using the current worker ID and lease token. Renewal preserves the fencing token and persists the updated expiry in the file-backed store. This milestone exposes the storage operation; a dedicated HTTP renewal endpoint is not yet part of the API.
